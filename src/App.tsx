@@ -48,6 +48,7 @@ const YEARS = Array.from({ length: 2055 - 2026 + 1 }, (_, i) => 2026 + i);
 export default function App() {
   const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 1)); // Start from 2026
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [categoryColors, setCategoryColors] = useState<Record<string, string>>({});
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'monthly' | 'yearly'>('monthly');
@@ -79,6 +80,45 @@ export default function App() {
       .then(data => setPrograms(data))
       .catch(err => console.error('Error fetching programs:', err));
   }, [currentYear]);
+
+  // Fetch category colors
+  useEffect(() => {
+    fetch('/api/category-colors')
+      .then(res => res.json())
+      .then(data => {
+        // Initialize with defaults if missing
+        const colors = { ...data };
+        const defaultColors = [
+          '#065f46', // emerald-800
+          '#1e40af', // blue-800
+          '#991b1b', // red-800
+          '#854d0e', // amber-800
+          '#5b21b6', // violet-800
+          '#374151', // gray-700
+          '#164e63'  // cyan-900
+        ];
+        CATEGORIES.forEach((cat, i) => {
+          if (!colors[cat]) {
+            colors[cat] = defaultColors[i % defaultColors.length];
+          }
+        });
+        setCategoryColors(colors);
+      })
+      .catch(err => console.error('Error fetching category colors:', err));
+  }, []);
+
+  const updateCategoryColor = async (category: string, color: string) => {
+    setCategoryColors(prev => ({ ...prev, [category]: color }));
+    try {
+      await fetch('/api/category-colors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category, color })
+      });
+    } catch (err) {
+      console.error('Error saving category color:', err);
+    }
+  };
 
   // Calendar Logic
   const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
@@ -134,12 +174,64 @@ export default function App() {
     setIsModalOpen(true);
   };
 
-  const handleDeleteClick = async (e: React.MouseEvent, id: number) => {
-    e.stopPropagation();
-    if (confirm('Adakah anda pasti ingin memadam program ini?')) {
-      await fetch(`/api/programs/${id}`, { method: 'DELETE' });
-      setPrograms(programs.filter(p => p.id !== id));
+  const handleDeleteClick = async (e: React.MouseEvent, id: number | undefined, name?: string) => {
+    console.log('handleDeleteClick triggered', { id, name });
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
     }
+    
+    if (id === undefined || id === null) {
+      console.error('Delete failed: ID is undefined or null');
+      alert('ID program tidak dijumpai. Sila muat semula halaman.');
+      return false;
+    }
+    
+    const message = name 
+      ? `Adakah anda pasti ingin memadam program "${name}"? Tindakan ini tidak boleh dibatalkan.`
+      : 'Adakah anda pasti ingin memadam program ini? Tindakan ini tidak boleh dibatalkan.';
+
+    if (window.confirm(message)) {
+      try {
+        console.log(`Requesting delete for ID: ${id}`);
+        const res = await fetch(`/api/programs/${id}`, { 
+          method: 'DELETE',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        
+        console.log('Delete response status:', res.status);
+        
+        if (res.ok) {
+          const data = await res.json();
+          console.log('Delete success data:', data);
+          
+          // Update state immediately
+          setPrograms(currentPrograms => {
+            const updated = currentPrograms.filter(p => {
+              const pId = Number(p.id);
+              const targetId = Number(id);
+              return pId !== targetId;
+            });
+            console.log(`State updated. Old count: ${currentPrograms.length}, New count: ${updated.length}`);
+            return updated;
+          });
+          
+          return true;
+        } else {
+          const errorText = await res.text();
+          console.error('Delete failed on server:', errorText);
+          alert(`Gagal memadam program (Ralat ${res.status}). Sila cuba lagi.`);
+          return false;
+        }
+      } catch (err) {
+        console.error('Error during delete request:', err);
+        alert('Ralat rangkaian semasa memadam program. Sila periksa sambungan anda.');
+        return false;
+      }
+    }
+    return false;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -153,23 +245,50 @@ export default function App() {
     };
 
     if (editingProgram?.id) {
-      await fetch(`/api/programs/${editingProgram.id}`, {
+      const res = await fetch(`/api/programs/${editingProgram.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      setPrograms(programs.map(p => p.id === editingProgram.id ? { ...p, ...payload } : p));
+      
+      if (res.ok) {
+        setPrograms(prev => prev.map(p => p.id === editingProgram.id ? { ...p, ...payload } : p));
+        setIsModalOpen(false);
+      } else {
+        alert('Gagal mengemaskini program. Sila cuba lagi.');
+      }
     } else {
       const res = await fetch('/api/programs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
-      setPrograms([...programs, { ...payload, id: data.id } as Program]);
+      
+      if (res.ok) {
+        const data = await res.json();
+        setPrograms(prev => [...prev, { ...payload, id: data.id } as Program]);
+        setIsModalOpen(false);
+      } else {
+        alert('Gagal menyimpan program baru. Sila cuba lagi.');
+      }
     }
+  };
 
-    setIsModalOpen(false);
+  const handleClearAll = async () => {
+    if (confirm(`Adakah anda pasti ingin mengosongkan SEMUA data program untuk tahun ${currentYear}? Tindakan ini tidak boleh dibatalkan.`)) {
+      try {
+        const res = await fetch(`/api/programs?year=${currentYear}`, { method: 'DELETE' });
+        if (res.ok) {
+          setPrograms(prev => prev.filter(p => p.year !== currentYear));
+          alert(`Semua data program tahun ${currentYear} telah dikosongkan.`);
+        } else {
+          alert('Gagal mengosongkan data. Sila cuba lagi.');
+        }
+      } catch (err) {
+        console.error('Error clearing programs:', err);
+        alert('Ralat semasa mengosongkan data.');
+      }
+    }
   };
 
   const exportPDF = async () => {
@@ -207,13 +326,17 @@ export default function App() {
           {Array.from({ length: days }).map((_, i) => {
             const day = i + 1;
             const dateStr = formatDate(currentYear, monthIndex, day);
-            const hasProgram = programsByDate[dateStr]?.length > 0;
+            const dayPrograms = programsByDate[dateStr] || [];
+            const hasProgram = dayPrograms.length > 0;
+            const catColor = hasProgram ? (categoryColors[dayPrograms[0].category] || '#fbbf24') : 'transparent';
+            
             return (
               <div 
                 key={day} 
                 className={`text-[9px] text-center p-0.5 rounded-md transition-colors ${
-                  hasProgram ? 'bg-amber-400 text-stone-950 font-bold' : 'text-stone-400'
+                  hasProgram ? 'font-bold' : 'text-stone-400'
                 }`}
+                style={hasProgram ? { backgroundColor: catColor, color: '#fff' } : {}}
               >
                 {day}
               </div>
@@ -444,9 +567,17 @@ export default function App() {
                               <div 
                                 key={p.id}
                                 onClick={(e) => handleEditClick(e, p)}
-                                className="text-[7px] sm:text-[9px] font-black leading-tight px-1 sm:px-2.5 py-1 sm:py-2 rounded-md sm:rounded-lg bg-stone-50 border-l-2 sm:border-l-4 border-l-emerald-700 border-y border-r border-stone-200 text-stone-700 truncate hover:bg-white hover:shadow-md transition-all flex items-center justify-between group/item"
+                                className="text-[7px] sm:text-[9px] font-black leading-tight px-1 sm:px-2.5 py-1 sm:py-2 rounded-md sm:rounded-lg bg-stone-50 border-y border-r border-stone-200 text-stone-700 truncate hover:bg-white hover:shadow-md transition-all flex items-center justify-between group/item"
+                                style={{ borderLeftWidth: '4px', borderLeftColor: categoryColors[p.category] || '#065f46' }}
                               >
                                 <span className="truncate">{p.name}</span>
+                                <button 
+                                  onClick={(e) => handleDeleteClick(e, p.id, p.name)}
+                                  className="opacity-100 sm:opacity-0 group-hover/item:opacity-100 p-1.5 hover:bg-red-50 text-red-500 rounded-md transition-all relative z-20"
+                                  title="Padam Program"
+                                >
+                                  <Trash2 className="w-3 h-3 sm:w-2.5 sm:h-2.5 pointer-events-none" />
+                                </button>
                               </div>
                             ))}
                           </div>
@@ -474,14 +605,24 @@ export default function App() {
                     {CATEGORIES.map(cat => (
                       <div key={cat} className="space-y-2.5">
                         <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                          <span className="text-stone-400">{cat}</span>
+                          <div className="flex items-center gap-2">
+                            <input 
+                              type="color" 
+                              value={categoryColors[cat] || '#065f46'} 
+                              onChange={(e) => updateCategoryColor(cat, e.target.value)}
+                              className="w-4 h-4 rounded-full overflow-hidden cursor-pointer border-none bg-transparent"
+                              title="Tukar Warna Kategori"
+                            />
+                            <span className="text-stone-400">{cat}</span>
+                          </div>
                           <span className="text-amber-400">{yearlyStats[cat]}</span>
                         </div>
                         <div className="h-2.5 bg-stone-900 rounded-full overflow-hidden border border-white/5">
                           <motion.div 
                             initial={{ width: 0 }}
                             animate={{ width: `${(yearlyStats[cat] / (programs.length || 1)) * 100}%` }}
-                            className="h-full bg-gradient-to-r from-emerald-700 to-emerald-500 rounded-full"
+                            className="h-full rounded-full"
+                            style={{ backgroundColor: categoryColors[cat] || '#065f46' }}
                           />
                         </div>
                       </div>
@@ -497,9 +638,12 @@ export default function App() {
                       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
                       .slice(0, 3)
                       .map(p => (
-                        <div key={p.id} className="flex gap-5 items-start group cursor-pointer">
-                          <div className="bg-emerald-900 border border-amber-400/20 rounded-2xl p-3 text-center min-w-[60px] shadow-lg group-hover:scale-110 transition-transform">
-                            <span className="block text-[10px] font-black uppercase text-amber-400/60">{new Date(p.date).toLocaleDateString('ms-MY', { month: 'short' })}</span>
+                        <div key={p.id} className="flex gap-5 items-start group cursor-pointer" onClick={(e) => handleEditClick(e, p)}>
+                          <div 
+                            className="border border-amber-400/20 rounded-2xl p-3 text-center min-w-[60px] shadow-lg group-hover:scale-110 transition-transform"
+                            style={{ backgroundColor: categoryColors[p.category] || '#064e3b' }}
+                          >
+                            <span className="block text-[10px] font-black uppercase text-white/60">{new Date(p.date).toLocaleDateString('ms-MY', { month: 'short' })}</span>
                             <span className="block text-2xl font-serif font-bold text-white">{new Date(p.date).getDate()}</span>
                           </div>
                           <div className="pt-1">
@@ -613,6 +757,18 @@ export default function App() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-widest text-stone-500 flex items-center gap-2">
+                      <CalendarIcon className="w-3 h-3 text-amber-400" /> Tarikh
+                    </label>
+                    <input 
+                      required
+                      type="date"
+                      value={selectedDate || ''}
+                      onChange={e => setSelectedDate(e.target.value)}
+                      className="w-full px-4 py-3 bg-stone-900 border border-amber-400/10 rounded-xl focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all text-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-stone-500 flex items-center gap-2">
                       <Clock className="w-3 h-3 text-amber-400" /> Masa
                     </label>
                     <input 
@@ -623,29 +779,34 @@ export default function App() {
                       placeholder="08:00 AM"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-stone-500 flex items-center gap-2">
-                      <MapPin className="w-3 h-3 text-amber-400" /> Tempat
-                    </label>
-                    <input 
-                      type="text"
-                      value={formData.location}
-                      onChange={e => setFormData({ ...formData, location: e.target.value })}
-                      className="w-full px-4 py-3 bg-stone-900 border border-amber-400/10 rounded-xl focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all text-white placeholder:text-stone-700"
-                      placeholder="Dewan Sekolah"
-                    />
-                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-stone-500 flex items-center gap-2">
+                    <MapPin className="w-3 h-3 text-amber-400" /> Tempat
+                  </label>
+                  <input 
+                    type="text"
+                    value={formData.location}
+                    onChange={e => setFormData({ ...formData, location: e.target.value })}
+                    className="w-full px-4 py-3 bg-stone-900 border border-amber-400/10 rounded-xl focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all text-white placeholder:text-stone-700"
+                    placeholder="Dewan Sekolah"
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-stone-500 flex items-center gap-2">
                     <Tag className="w-3 h-3 text-amber-400" /> Kategori Program
                   </label>
-                  <div className="relative">
+                  <div className="relative flex items-center">
+                    <div 
+                      className="absolute left-3 w-3 h-3 rounded-full z-10"
+                      style={{ backgroundColor: categoryColors[formData.category || ''] || '#065f46' }}
+                    />
                     <select 
                       value={formData.category}
                       onChange={e => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full px-4 py-3 bg-stone-900 border border-amber-400/10 rounded-xl focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all appearance-none text-white"
+                      className="w-full pl-10 pr-4 py-3 bg-stone-900 border border-amber-400/10 rounded-xl focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all appearance-none text-white"
                     >
                       {CATEGORIES.map(cat => (
                         <option key={cat} value={cat} className="bg-stone-900">{cat}</option>
@@ -671,6 +832,20 @@ export default function App() {
                 </div>
 
                 <div className="pt-4 flex gap-3">
+                  {editingProgram && (
+                    <button 
+                      type="button"
+                      onClick={async (e) => {
+                        const success = await handleDeleteClick(e as any, editingProgram.id!, editingProgram.name);
+                        if (success) {
+                          setIsModalOpen(false);
+                        }
+                      }}
+                      className="px-4 py-3 border border-red-500/30 rounded-xl font-bold text-red-500 hover:bg-red-500/10 transition-colors uppercase tracking-widest text-[10px] flex items-center gap-2"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 pointer-events-none" /> Padam
+                    </button>
+                  )}
                   <button 
                     type="button"
                     onClick={() => setIsModalOpen(false)}

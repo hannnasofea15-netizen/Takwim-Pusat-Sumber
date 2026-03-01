@@ -19,6 +19,13 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS category_colors (
+    category TEXT PRIMARY KEY,
+    color TEXT NOT NULL
+  )
+`);
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -40,6 +47,63 @@ async function startServer() {
     res.json(programs);
   });
 
+  app.get("/api/category-colors", (req, res) => {
+    const colors = db.prepare("SELECT * FROM category_colors").all();
+    const colorMap = colors.reduce((acc: any, curr: any) => {
+      acc[curr.category] = curr.color;
+      return acc;
+    }, {});
+    res.json(colorMap);
+  });
+
+  app.post("/api/category-colors", (req, res) => {
+    const { category, color } = req.body;
+    db.prepare("INSERT OR REPLACE INTO category_colors (category, color) VALUES (?, ?)").run(category, color);
+    res.json({ success: true });
+  });
+
+  app.delete("/api/programs", (req, res) => {
+    const { year } = req.query;
+    console.log(`Clearing programs for year: ${year || 'ALL'}`);
+    try {
+      let result;
+      if (year) {
+        result = db.prepare("DELETE FROM programs WHERE year = ?").run(year);
+      } else {
+        result = db.prepare("DELETE FROM programs").run();
+      }
+      console.log(`Bulk delete result: ${result.changes} rows affected`);
+      res.json({ success: true, changes: result.changes });
+    } catch (error) {
+      console.error("Clear error:", error);
+      res.status(500).json({ error: "Failed to clear programs" });
+    }
+  });
+
+  app.delete("/api/programs/:id", (req, res) => {
+    const { id } = req.params;
+    console.log(`[DELETE] Request received for ID: ${id} (Type: ${typeof id})`);
+    try {
+      const programId = parseInt(id);
+      if (isNaN(programId)) {
+        console.error(`[DELETE] Invalid ID format: ${id}`);
+        return res.status(400).json({ error: "Invalid ID format" });
+      }
+      
+      const result = db.prepare("DELETE FROM programs WHERE id = ?").run(programId);
+      console.log(`[DELETE] Success. ID ${programId}: ${result.changes} rows affected`);
+      
+      if (result.changes === 0) {
+        console.warn(`[DELETE] No program found with ID ${programId}`);
+      }
+      
+      res.json({ success: true, changes: result.changes });
+    } catch (error) {
+      console.error("[DELETE] Error:", error);
+      res.status(500).json({ error: "Failed to delete program" });
+    }
+  });
+
   app.post("/api/programs", (req, res) => {
     const { date, name, time, location, category, purpose, year } = req.body;
     const info = db.prepare(
@@ -54,12 +118,6 @@ async function startServer() {
     db.prepare(
       "UPDATE programs SET date = ?, name = ?, time = ?, location = ?, category = ?, purpose = ?, year = ? WHERE id = ?"
     ).run(date, name, time, location, category, purpose, year, id);
-    res.json({ success: true });
-  });
-
-  app.delete("/api/programs/:id", (req, res) => {
-    const { id } = req.params;
-    db.prepare("DELETE FROM programs WHERE id = ?").run(id);
     res.json({ success: true });
   });
 
