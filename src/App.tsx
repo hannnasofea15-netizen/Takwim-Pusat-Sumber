@@ -333,7 +333,8 @@ export default function App() {
             return (
               <div 
                 key={day} 
-                className={`text-[9px] text-center p-0.5 rounded-md transition-colors ${
+                onClick={() => handleDayClick(dateStr)}
+                className={`text-[9px] text-center p-0.5 rounded-md transition-colors cursor-pointer hover:bg-emerald-50 ${
                   hasProgram ? 'font-bold' : 'text-stone-400'
                 }`}
                 style={hasProgram ? { backgroundColor: catColor, color: '#fff' } : {}}
@@ -722,9 +723,9 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-stone-950 border border-amber-400/30 rounded-3xl shadow-2xl w-full max-w-lg relative z-10 overflow-hidden"
+              className="bg-stone-950 border border-amber-400/30 rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] relative z-10 flex flex-col overflow-hidden"
             >
-              <div className="p-6 border-b border-amber-400/20 flex items-center justify-between bg-stone-900">
+              <div className="p-6 border-b border-amber-400/20 flex items-center justify-between bg-stone-900 shrink-0">
                 <div>
                   <h3 className="text-xl font-serif font-bold text-amber-400">
                     {editingProgram ? 'Kemaskini Program' : 'Tambah Program Baru'}
@@ -741,7 +742,7 @@ export default function App() {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1 scrollbar-hide">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-stone-500">Nama Program</label>
                   <input 
