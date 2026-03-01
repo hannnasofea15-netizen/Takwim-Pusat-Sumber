@@ -60,9 +60,17 @@ export default function App() {
     purpose: ''
   });
 
+  const [appWidth, setAppWidth] = useState<'standard' | 'wide' | 'full'>('standard');
+
   const calendarRef = useRef<HTMLDivElement>(null);
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth();
+
+  const widthClasses = {
+    standard: 'w-full max-w-7xl',
+    wide: 'w-full lg:max-w-[95%]',
+    full: 'w-full px-2 md:px-6'
+  };
 
   // Fetch programs
   useEffect(() => {
@@ -221,8 +229,8 @@ export default function App() {
       <div className="bg-overlay" />
       
       {/* Header & Year Navigation */}
-      <header className="bg-stone-950/95 border-b border-amber-400/30 pt-8 pb-6 px-6 sticky top-0 z-20 shadow-2xl backdrop-blur-md">
-        <div className="max-w-7xl mx-auto">
+      <header className="bg-stone-950/95 border-b border-amber-400/30 pt-8 pb-6 px-6 z-20 shadow-2xl backdrop-blur-md">
+        <div className={`${widthClasses[appWidth]} mx-auto`}>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-4">
@@ -254,19 +262,49 @@ export default function App() {
               </div>
             </div>
             
-            <div className="flex flex-col items-end gap-3">
-              <div className="flex items-center gap-4 mb-1">
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-400/60">Tahun Takwim</span>
-                <select 
-                  value={currentYear}
-                  onChange={(e) => setYear(parseInt(e.target.value))}
-                  className="bg-stone-900 text-amber-400 border border-amber-400/20 rounded-xl px-3 py-1 text-sm font-black outline-none focus:ring-1 focus:ring-amber-400"
-                >
-                  {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </div>
-              
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col items-end gap-3 w-full md:w-auto">
+                <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-4 mb-1">
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-400/60">Tahun Takwim</span>
+                  <select 
+                    value={currentYear}
+                    onChange={(e) => setYear(parseInt(e.target.value))}
+                    className="bg-stone-900 text-amber-400 border border-amber-400/20 rounded-xl px-3 py-1 text-sm font-black outline-none focus:ring-1 focus:ring-amber-400"
+                  >
+                    {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+                
+                <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-2">
+                  <div className="hidden sm:flex items-center bg-stone-900 rounded-2xl p-1 border border-amber-400/20 shadow-inner">
+                  <button
+                    onClick={() => setAppWidth('standard')}
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+                      appWidth === 'standard' ? 'bg-amber-400 text-stone-950' : 'text-stone-500'
+                    }`}
+                    title="Keluasan Standard"
+                  >
+                    S
+                  </button>
+                  <button
+                    onClick={() => setAppWidth('wide')}
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+                      appWidth === 'wide' ? 'bg-amber-400 text-stone-950' : 'text-stone-500'
+                    }`}
+                    title="Keluasan Lebar"
+                  >
+                    W
+                  </button>
+                  <button
+                    onClick={() => setAppWidth('full')}
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+                      appWidth === 'full' ? 'bg-amber-400 text-stone-950' : 'text-stone-500'
+                    }`}
+                    title="Keluasan Penuh"
+                  >
+                    F
+                  </button>
+                </div>
+
                 <div className="flex items-center bg-stone-900 rounded-2xl p-1 border border-amber-400/20 shadow-inner">
                   <button
                     onClick={() => setViewMode('monthly')}
@@ -337,7 +375,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-grow max-w-7xl mx-auto w-full p-6 relative z-10">
+      <main className={`flex-grow ${widthClasses[appWidth]} mx-auto w-full p-6 relative z-10`}>
         <div ref={calendarRef} className="space-y-8">
           {viewMode === 'monthly' ? (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -383,31 +421,31 @@ export default function App() {
                         <div 
                           key={day} 
                           onClick={() => handleDayClick(dateStr)}
-                          className={`h-40 p-3 border-r border-b border-stone-100 bg-white hover:bg-emerald-50/30 transition-all cursor-pointer group relative`}
+                          className={`min-h-[70px] sm:min-h-[100px] md:h-40 p-1.5 sm:p-3 border-r border-b border-stone-100 bg-white hover:bg-emerald-50/30 transition-all cursor-pointer group relative`}
                         >
-                          <div className="flex justify-between items-start mb-2">
-                            <span className={`text-sm font-black ${isToday ? 'bg-emerald-800 text-white w-9 h-9 flex items-center justify-center rounded-xl shadow-lg shadow-emerald-900/30' : 'text-stone-300 group-hover:text-emerald-800'}`}>
+                          <div className="flex justify-between items-start mb-1 sm:mb-2">
+                            <span className={`text-xs sm:text-sm font-black ${isToday ? 'bg-emerald-800 text-white w-6 h-6 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg sm:rounded-xl shadow-lg shadow-emerald-900/30' : 'text-stone-300 group-hover:text-emerald-800'}`}>
                               {day}
                             </span>
                             {dayPrograms.length > 0 && (
-                              <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
+                              <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
                             )}
                           </div>
                           
-                          <div className="space-y-1.5 overflow-y-auto max-h-[85px] scrollbar-hide">
+                          <div className="space-y-1 overflow-y-auto max-h-[40px] sm:max-h-[85px] scrollbar-hide">
                             {dayPrograms.map(p => (
                               <div 
                                 key={p.id}
                                 onClick={(e) => handleEditClick(e, p)}
-                                className="text-[9px] font-black leading-tight px-2.5 py-2 rounded-lg bg-stone-50 border-l-4 border-l-emerald-700 border-y border-r border-stone-200 text-stone-700 truncate hover:bg-white hover:shadow-md transition-all flex items-center justify-between group/item"
+                                className="text-[7px] sm:text-[9px] font-black leading-tight px-1 sm:px-2.5 py-1 sm:py-2 rounded-md sm:rounded-lg bg-stone-50 border-l-2 sm:border-l-4 border-l-emerald-700 border-y border-r border-stone-200 text-stone-700 truncate hover:bg-white hover:shadow-md transition-all flex items-center justify-between group/item"
                               >
                                 <span className="truncate">{p.name}</span>
                               </div>
                             ))}
                           </div>
 
-                          <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-emerald-800 text-white p-1.5 rounded-lg shadow-lg">
-                            <Plus className="w-3 h-3" />
+                          <div className="absolute bottom-1 right-1 sm:bottom-3 sm:right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-emerald-800 text-white p-1 rounded-md sm:rounded-lg shadow-lg">
+                            <Plus className="w-2 h-2 sm:w-3 sm:h-3" />
                           </div>
                         </div>
                       );
@@ -498,7 +536,7 @@ export default function App() {
       {/* Footer */}
       <footer className="py-20 px-6 border-t border-amber-400/20 mt-12 bg-stone-950 relative z-10 overflow-hidden">
         <div className="absolute inset-0 bg-emerald-900/10" />
-        <div className="max-w-7xl mx-auto relative z-10">
+        <div className={`${widthClasses[appWidth]} mx-auto relative z-10`}>
           <div className="flex flex-col items-center justify-center space-y-6">
             <div className="flex items-center gap-4">
               <div className="h-px w-16 bg-amber-400/30" />
