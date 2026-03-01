@@ -3,7 +3,16 @@ import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
 import path from "path";
 
-const db = new Database("takwim.db");
+let db: Database.Database;
+try {
+  db = new Database("takwim.db");
+  console.log("Database initialized successfully at takwim.db");
+} catch (error) {
+  console.error("CRITICAL: Failed to initialize database:", error);
+  // Fallback to in-memory if file fails (useful for some environments, though data won't persist)
+  db = new Database(":memory:");
+  console.warn("Using in-memory database as fallback. Data will NOT persist!");
+}
 
 // Initialize database
 db.exec(`
@@ -105,20 +114,48 @@ async function startServer() {
   });
 
   app.post("/api/programs", (req, res) => {
-    const { date, name, time, location, category, purpose, year } = req.body;
-    const info = db.prepare(
-      "INSERT INTO programs (date, name, time, location, category, purpose, year) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).run(date, name, time, location, category, purpose, year);
-    res.json({ id: info.lastInsertRowid });
+    console.log("[POST] Received program data:", req.body);
+    try {
+      const { date, name, time, location, category, purpose, year } = req.body;
+      
+      if (!date || !name || year === undefined) {
+        console.error("[POST] Missing required fields:", { date, name, year });
+        return res.status(400).json({ error: "Missing required fields (date, name, year)" });
+      }
+
+      const info = db.prepare(
+        "INSERT INTO programs (date, name, time, location, category, purpose, year) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      ).run(date, name, time, location, category, purpose, year);
+      
+      console.log("[POST] Program saved successfully, ID:", info.lastInsertRowid);
+      res.json({ id: info.lastInsertRowid });
+    } catch (error) {
+      console.error("[POST] Error saving program:", error);
+      res.status(500).json({ error: "Internal Server Error", message: error instanceof Error ? error.message : String(error) });
+    }
   });
 
   app.put("/api/programs/:id", (req, res) => {
     const { id } = req.params;
-    const { date, name, time, location, category, purpose, year } = req.body;
-    db.prepare(
-      "UPDATE programs SET date = ?, name = ?, time = ?, location = ?, category = ?, purpose = ?, year = ? WHERE id = ?"
-    ).run(date, name, time, location, category, purpose, year, id);
-    res.json({ success: true });
+    console.log(`[PUT] Received update for ID: ${id}`, req.body);
+    try {
+      const { date, name, time, location, category, purpose, year } = req.body;
+      
+      const result = db.prepare(
+        "UPDATE programs SET date = ?, name = ?, time = ?, location = ?, category = ?, purpose = ?, year = ? WHERE id = ?"
+      ).run(date, name, time, location, category, purpose, year, id);
+      
+      if (result.changes === 0) {
+        console.warn(`[PUT] No program found with ID ${id}`);
+        return res.status(404).json({ error: "Program not found" });
+      }
+
+      console.log(`[PUT] Program ${id} updated successfully`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error(`[PUT] Error updating program ${id}:`, error);
+      res.status(500).json({ error: "Internal Server Error", message: error instanceof Error ? error.message : String(error) });
+    }
   });
 
   // Vite middleware for development

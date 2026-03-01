@@ -245,31 +245,45 @@ export default function App() {
     };
 
     if (editingProgram?.id) {
-      const res = await fetch(`/api/programs/${editingProgram.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      
-      if (res.ok) {
-        setPrograms(prev => prev.map(p => p.id === editingProgram.id ? { ...p, ...payload } : p));
-        setIsModalOpen(false);
-      } else {
-        alert('Gagal mengemaskini program. Sila cuba lagi.');
+      try {
+        const res = await fetch(`/api/programs/${editingProgram.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        if (res.ok) {
+          setPrograms(prev => prev.map(p => p.id === editingProgram.id ? { ...p, ...payload } : p));
+          setIsModalOpen(false);
+        } else {
+          const errorData = await res.json().catch(() => ({}));
+          console.error('Update failed:', errorData);
+          alert(`Gagal mengemaskini program: ${errorData.message || 'Sila cuba lagi.'}`);
+        }
+      } catch (err) {
+        console.error('Network error during update:', err);
+        alert('Ralat rangkaian semasa mengemaskini program. Sila periksa sambungan anda.');
       }
     } else {
-      const res = await fetch('/api/programs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        setPrograms(prev => [...prev, { ...payload, id: data.id } as Program]);
-        setIsModalOpen(false);
-      } else {
-        alert('Gagal menyimpan program baru. Sila cuba lagi.');
+      try {
+        const res = await fetch('/api/programs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          setPrograms(prev => [...prev, { ...payload, id: data.id } as Program]);
+          setIsModalOpen(false);
+        } else {
+          const errorData = await res.json().catch(() => ({}));
+          console.error('Save failed:', errorData);
+          alert(`Gagal menyimpan program baru: ${errorData.message || 'Sila cuba lagi.'}`);
+        }
+      } catch (err) {
+        console.error('Network error during save:', err);
+        alert('Ralat rangkaian semasa menyimpan program. Sila periksa sambungan anda.');
       }
     }
   };
