@@ -275,6 +275,13 @@ export default function App() {
                 </div>
                 
                 <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-2">
+                  <button 
+                    onClick={() => handleDayClick(new Date().toISOString().split('T')[0])}
+                    className="bg-amber-400 hover:bg-amber-300 text-stone-950 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 shadow-lg shadow-amber-400/20"
+                  >
+                    <Plus className="w-3 h-3" /> <span className="hidden sm:inline">Tambah Program</span>
+                  </button>
+                  
                   <div className="hidden sm:flex items-center bg-stone-900 rounded-2xl p-1 border border-amber-400/20 shadow-inner">
                   <button
                     onClick={() => setAppWidth('standard')}
